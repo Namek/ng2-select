@@ -1,9 +1,25 @@
-import {Component, Input, Output, EventEmitter, ElementRef, OnInit} from '@angular/core';
+import {
+  Component,
+  forwardRef,
+  Input,
+  ElementRef,
+  EventEmitter,
+  OnInit,
+  Output,
+  Provider
+} from '@angular/core';
+import {ControlValueAccessor, NG_VALUE_ACCESSOR, CORE_DIRECTIVES} from '@angular/common';
 import {SelectItem} from './select-item';
 import {HighlightPipe, stripTags} from './select-pipes';
 import {OptionsBehavior} from './select-interfaces';
 import {escapeRegexp} from './common';
 import {OffClickDirective} from './off-click';
+
+const NG2_SELECT_CONTROL_VALUE_ACCESSOR = new Provider(
+  NG_VALUE_ACCESSOR, {
+    useExisting: forwardRef(() => SelectComponent),
+    multi: true
+  });
 
 let styles = `
 .ui-select-toggle {
@@ -115,6 +131,7 @@ let optionsTemplate = `
 @Component({
   selector: 'ng-select',
   directives: [OffClickDirective],
+  providers: [NG2_SELECT_CONTROL_VALUE_ACCESSOR],
   pipes: [HighlightPipe],
   styles: [styles],
   template: `
@@ -187,7 +204,7 @@ let optionsTemplate = `
   </div>
   `
 })
-export class SelectComponent implements OnInit {
+export class SelectComponent implements OnInit, ControlValueAccessor {
   @Input() public allowClear:boolean = false;
   @Input() public placeholder:string = '';
   @Input() public idField:string = 'id';
@@ -246,6 +263,10 @@ export class SelectComponent implements OnInit {
   private _items:Array<any> = [];
   private _disabled:boolean = false;
   private _active:Array<SelectItem> = [];
+
+  private _onTouchedCallback:() => void = () => {};
+  private _onChangeCallback:(_:any) => void = (_:any) => {};
+
 
   public constructor(element:ElementRef) {
     this.element = element;
@@ -341,11 +362,13 @@ export class SelectComponent implements OnInit {
       this.active.splice(index, 1);
       this.data.next(this.active);
       this.doEvent('removed', item);
+      this._onChangeCallback(this.active);
     }
     if (this.multiple === false) {
       this.active = [];
       this.data.next(this.active);
       this.doEvent('removed', item);
+      this._onChangeCallback(this.active);
     }
   }
 
@@ -372,6 +395,7 @@ export class SelectComponent implements OnInit {
     if (this.inputMode === true && ((this.multiple === true && e) || this.multiple === false)) {
       this.focusToInput();
       this.open();
+      this._onTouchedCallback();
     }
   }
 
@@ -402,6 +426,7 @@ export class SelectComponent implements OnInit {
     this.open();
     event.srcElement.value = value;
     this.inputEvent(event);
+    this._onTouchedCallback();
   }
 
   protected  selectActive(value:SelectItem):void {
@@ -467,6 +492,19 @@ export class SelectComponent implements OnInit {
       this.focusToInput(stripTags(value.text));
       this.element.nativeElement.querySelector('.ui-select-container').focus();
     }
+    this._onChangeCallback(this.active);
+  }
+
+  writeValue(selected: any):void {
+    this.active = selected
+  }
+
+  registerOnChange(fn: any):void {
+    this._onChangeCallback = fn;
+  }
+
+  registerOnTouched(fn: any):void {
+    this._onTouchedCallback = fn;
   }
 }
 
